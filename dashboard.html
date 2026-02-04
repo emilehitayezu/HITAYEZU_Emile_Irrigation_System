@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Dashboard - Sensor Monitoring</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        .sensor-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        .sensor-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        .sensor-card:hover::before {
+            left: 100%;
+        }
+        .sensor-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .slide-in {
+            animation: slideIn 0.5s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .counter-animation {
+            animation: countUp 1s ease-out;
+        }
+        @keyframes countUp {
+            from { opacity: 0; transform: scale(0.5); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .weather-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .weather-card:hover {
+            transform: translateY(-5px) scale(1.05);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .weather-card:hover .weather-icon {
+            color: white;
+        }
+        .notification-badge {
+            animation: bounce 2s infinite;
+        }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+        .chart-container {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .chart-container:hover {
+            transform: scale(1.02);
+        }
+        .status-indicator {
+            position: relative;
+        }
+        .status-indicator::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            background: rgba(34, 197, 94, 0.3);
+            border-radius: 50%;
+            animation: ripple 2s infinite;
+        }
+        @keyframes ripple {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <div class="notification-badge">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                    <h1 class="text-2xl font-bold">IoT Sensor Dashboard</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="status-indicator w-3 h-3 bg-green-500 rounded-full"></div>
+                        <span class="text-sm">Live</span>
+                    </div>
+                    <span class="text-sm">Welcome, <span id="username" class="font-semibold">User</span></span>
+                    <button onclick="logout()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition duration-200 transform hover:scale-105">
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Status Bar -->
+        <div class="mb-8">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 bg-green-500 rounded-full pulse-animation"></div>
+                    <span class="text-sm text-gray-600">Live Data Stream Active</span>
+                </div>
+                <div class="text-sm text-gray-600">
+                    Last Updated: <span id="lastUpdated">Just now</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sensor Cards Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- Soil Moisture Card -->
+            <div class="sensor-card card rounded-xl p-6 slide-in" onclick="showSensorDetails('soil-moisture')">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                        </svg>
+                    </div>
+                    <span class="text-sm text-gray-500">Soil Moisture</span>
+                </div>
+                <div class="text-3xl font-bold text-gray-800 mb-2 counter-animation">
+                    <span id="soilMoisture">65</span>%
+                </div>
+                <div class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-green-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+                    </svg>
+                    <span class="text-green-600">+5% from yesterday</span>
+                </div>
+                <div class="mt-4 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div class="h-full bg-blue-500 rounded-full transition-all duration-1000" style="width: 65%"></div>
+                </div>
+            </div>
+
+            <!-- Humidity Card -->
+            <div class="sensor-card card rounded-xl p-6 slide-in" onclick="showSensorDetails('humidity')" style="animation-delay: 0.1s">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path>
+                        </svg>
+                    </div>
+                    <span class="text-sm text-gray-500">Humidity</span>
+                </div>
+                <div class="text-3xl font-bold text-gray-800 mb-2 counter-animation">
+                    <span id="humidity">72</span>%
+                </div>
+                <div class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-red-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+                    </svg>
+                    <span class="text-red-600">-3% from yesterday</span>
+                </div>
+                <div class="mt-4 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div class="h-full bg-cyan-500 rounded-full transition-all duration-1000" style="width: 72%"></div>
+                </div>
+            </div>
+
+            <!-- Temperature Card -->
+            <div class="sensor-card card rounded-xl p-6 slide-in" onclick="showSensorDetails('temperature')" style="animation-delay: 0.2s">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                    <span class="text-sm text-gray-500">Temperature</span>
+                </div>
+                <div class="text-3xl font-bold text-gray-800 mb-2 counter-animation">
+                    <span id="temperature">24</span>°C
+                </div>
+                <div class="flex items-center text-sm">
+                    <svg class="w-4 h-4 text-green-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+                    </svg>
+                    <span class="text-green-600">+2°C from yesterday</span>
+                </div>
+                <div class="mt-4 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div class="h-full bg-orange-500 rounded-full transition-all duration-1000" style="width: 48%"></div>
+                </div>
+            </div>
+
+            <!-- Weather Status Card -->
+            <div class="sensor-card card rounded-xl p-6 slide-in" onclick="showSensorDetails('weather')" style="animation-delay: 0.3s">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
+                        </svg>
+                    </div>
+                    <span class="text-sm text-gray-500">Weather</span>
+                </div>
+                <div class="text-3xl font-bold text-gray-800 mb-2 counter-animation">
+                    Partly Cloudy
+                </div>
+                <div class="flex items-center text-sm">
+                    <span class="text-blue-600">Rain expected in 2 hours</span>
+                </div>
+                <div class="mt-4 flex items-center justify-between">
+                    <span class="text-xs text-gray-500">22°C</span>
+                    <span class="text-xs text-gray-500">65%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Real-time Chart -->
+            <div class="card rounded-xl p-6 chart-container">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">Real-time Sensor Data</h2>
+                    <button onclick="toggleRealtimeChart()" class="text-purple-600 hover:text-purple-700">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                    </button>
+                </div>
+                <canvas id="realtimeChart" width="400" height="200"></canvas>
+            </div>
+
+            <!-- Historical Chart -->
+            <div class="card rounded-xl p-6 chart-container">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">24-Hour Trends</h2>
+                    <select onchange="updateHistoricalChart(this.value)" class="text-sm border rounded px-2 py-1">
+                        <option value="24h">24 Hours</option>
+                        <option value="7d">7 Days</option>
+                        <option value="30d">30 Days</option>
+                    </select>
+                </div>
+                <canvas id="historicalChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Weather Forecast -->
+        <div class="card rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Weather Forecast</h2>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div class="weather-card text-center p-4 rounded-lg cursor-pointer" onclick="showWeatherDetails('today')">
+                    <div class="text-sm text-gray-600 mb-2">Today</div>
+                    <div class="w-12 h-12 mx-auto mb-2 bg-blue-100 rounded-lg flex items-center justify-center weather-icon">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
+                        </svg>
+                    </div>
+                    <div class="text-lg font-semibold">22°C</div>
+                    <div class="text-sm text-gray-600">Rainy</div>
+                </div>
+                <div class="weather-card text-center p-4 rounded-lg cursor-pointer" onclick="showWeatherDetails('tomorrow')">
+                    <div class="text-sm text-gray-600 mb-2">Tomorrow</div>
+                    <div class="w-12 h-12 mx-auto mb-2 bg-yellow-100 rounded-lg flex items-center justify-center weather-icon">
+                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="text-lg font-semibold">25°C</div>
+                    <div class="text-sm text-gray-600">Sunny</div>
+                </div>
+                <div class="weather-card text-center p-4 rounded-lg cursor-pointer" onclick="showWeatherDetails('wednesday')">
+                    <div class="text-sm text-gray-600 mb-2">Wednesday</div>
+                    <div class="w-12 h-12 mx-auto mb-2 bg-gray-100 rounded-lg flex items-center justify-center weather-icon">
+                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="text-lg font-semibold">23°C</div>
+                    <div class="text-sm text-gray-600">Cloudy</div>
+                </div>
+                <div class="weather-card text-center p-4 rounded-lg cursor-pointer" onclick="showWeatherDetails('thursday')">
+                    <div class="text-sm text-gray-600 mb-2">Thursday</div>
+                    <div class="w-12 h-12 mx-auto mb-2 bg-yellow-100 rounded-lg flex items-center justify-center weather-icon">
+                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="text-lg font-semibold">26°C</div>
+                    <div class="text-sm text-gray-600">Sunny</div>
+                </div>
+                <div class="weather-card text-center p-4 rounded-lg cursor-pointer" onclick="showWeatherDetails('friday')">
+                    <div class="text-sm text-gray-600 mb-2">Friday</div>
+                    <div class="w-12 h-12 mx-auto mb-2 bg-blue-100 rounded-lg flex items-center justify-center weather-icon">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
+                        </svg>
+                    </div>
+                    <div class="text-lg font-semibold">21°C</div>
+                    <div class="text-sm text-gray-600">Rainy</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Notification Toast -->
+    <div id="notification" class="fixed bottom-4 right-4 bg-purple-600 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300">
+        <div class="flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span id="notificationText">Notification</span>
+        </div>
+    </div>
+
+    <script>
+        // Check authentication
+        if (localStorage.getItem('isLoggedIn') !== 'true') {
+            window.location.href = 'login.html';
+        }
+
+        // Display username
+        document.getElementById('username').textContent = localStorage.getItem('username') || 'User';
+
+        // Logout function
+        function logout() {
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('username');
+            window.location.href = 'login.html';
+        }
+
+        // Show notification
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notificationText');
+            notificationText.textContent = message;
+            notification.style.transform = 'translateX(0)';
+            
+            setTimeout(() => {
+                notification.style.transform = 'translateX(100%)';
+            }, 3000);
+        }
+
+        // Show sensor details
+        function showSensorDetails(sensor) {
+            const messages = {
+                'soil-moisture': 'Soil moisture is optimal for plant growth',
+                'humidity': 'Humidity levels are within normal range',
+                'temperature': 'Temperature is ideal for current conditions',
+                'weather': 'Weather conditions updated successfully'
+            };
+            showNotification(messages[sensor] || 'Sensor details updated');
+        }
+
+        // Show weather details
+        function showWeatherDetails(day) {
+            showNotification(`Weather forecast for ${day} loaded`);
+        }
+
+        // Toggle real-time chart
+        let realtimeChartActive = true;
+        function toggleRealtimeChart() {
+            realtimeChartActive = !realtimeChartActive;
+            if (realtimeChartActive) {
+                showNotification('Real-time updates resumed');
+            } else {
+                showNotification('Real-time updates paused');
+            }
+        }
+
+        // Update historical chart
+        function updateHistoricalChart(period) {
+            showNotification(`Historical data updated for ${period}`);
+            // Here you would update the chart with new data
+        }
+
+        // Initialize charts
+        const realtimeCtx = document.getElementById('realtimeChart').getContext('2d');
+        const historicalCtx = document.getElementById('historicalChart').getContext('2d');
+
+        // Real-time chart configuration
+        const realtimeChart = new Chart(realtimeCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Soil Moisture (%)',
+                        data: [],
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Humidity (%)',
+                        data: [],
+                        borderColor: 'rgb(6, 182, 212)',
+                        backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Temperature (°C)',
+                        data: [],
+                        borderColor: 'rgb(251, 146, 60)',
+                        backgroundColor: 'rgba(251, 146, 60, 0.1)',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                }
+            }
+        });
+
+        // Historical chart configuration
+        const historicalChart = new Chart(historicalCtx, {
+            type: 'bar',
+            data: {
+                labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
+                datasets: [
+                    {
+                        label: 'Soil Moisture (%)',
+                        data: [60, 62, 65, 68, 70, 67, 65],
+                        backgroundColor: 'rgba(59, 130, 246, 0.8)'
+                    },
+                    {
+                        label: 'Humidity (%)',
+                        data: [75, 73, 70, 68, 65, 70, 72],
+                        backgroundColor: 'rgba(6, 182, 212, 0.8)'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                }
+            }
+        });
+
+        // Simulate real-time data updates
+        function updateRealtimeData() {
+            if (!realtimeChartActive) return;
+            
+            const now = new Date();
+            const timeLabel = now.toLocaleTimeString();
+            
+            // Add new data point
+            if (realtimeChart.data.labels.length > 10) {
+                realtimeChart.data.labels.shift();
+                realtimeChart.data.datasets.forEach(dataset => dataset.data.shift());
+            }
+            
+            realtimeChart.data.labels.push(timeLabel);
+            realtimeChart.data.datasets[0].data.push(60 + Math.random() * 20); // Soil moisture
+            realtimeChart.data.datasets[1].data.push(65 + Math.random() * 15); // Humidity
+            realtimeChart.data.datasets[2].data.push(20 + Math.random() * 10); // Temperature
+            
+            realtimeChart.update();
+            
+            // Update sensor cards with animation
+            const soilMoisture = Math.round(60 + Math.random() * 20);
+            const humidity = Math.round(65 + Math.random() * 15);
+            const temperature = Math.round(20 + Math.random() * 10);
+            
+            animateValue('soilMoisture', soilMoisture);
+            animateValue('humidity', humidity);
+            animateValue('temperature', temperature);
+            
+            // Update progress bars
+            updateProgressBar('soilMoisture', soilMoisture, 'bg-blue-500');
+            updateProgressBar('humidity', humidity, 'bg-cyan-500');
+            updateProgressBar('temperature', temperature, 'bg-orange-500');
+            
+            // Update last updated time
+            document.getElementById('lastUpdated').textContent = 'Just now';
+        }
+
+        // Animate number changes
+        function animateValue(id, value) {
+            const element = document.getElementById(id);
+            const current = parseInt(element.textContent);
+            const increment = value > current ? 1 : -1;
+            const steps = Math.abs(value - current);
+            
+            if (steps === 0) return;
+            
+            let step = 0;
+            const timer = setInterval(() => {
+                step++;
+                element.textContent = current + (increment * step);
+                if (step >= steps) {
+                    clearInterval(timer);
+                }
+            }, 50);
+        }
+
+        // Update progress bar
+        function updateProgressBar(sensorId, value, colorClass) {
+            const card = document.getElementById(sensorId).closest('.sensor-card');
+            const progressBar = card.querySelector('.h-full');
+            progressBar.style.width = value + '%';
+            progressBar.className = `h-full ${colorClass} rounded-full transition-all duration-1000`;
+        }
+
+        // Start real-time updates
+        setInterval(updateRealtimeData, 3000);
+
+        // Initial data load
+        updateRealtimeData();
+    </script>
+</body>
+</html>
